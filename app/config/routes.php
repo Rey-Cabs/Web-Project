@@ -61,7 +61,9 @@ $router->group('/auth', function() use ($router) {
 });
 
 // Dashboard routes
-$router->group('/dashboard', 'Control::Dashboard');
+$router->group('/dashboard', function() use ($router) {
+    $router->get('/', 'Control::Dashboard');
+});
 
 // Chart / API endpoints for dashboard
 $router->get('/patients_chart', 'Control::PatientsChart');
