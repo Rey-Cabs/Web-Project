@@ -89,7 +89,7 @@ class Control extends Controller
 {
     if (!$this->session->userdata('logged_in')) {
         set_flash_alert('danger', 'Please log in to access the dashboard.');
-        redirect('/auth/login');
+        redirect('/login');
         exit;
     }
 
@@ -388,7 +388,7 @@ public function login() {
     {
         $this->session->sess_destroy();
         set_flash_alert('success', 'You have been logged out.');
-        redirect('/auth/login');
+        redirect('/');
         exit;
     }
 
