@@ -265,7 +265,7 @@ public function login() {
         }
     } else {
         // Show login page
-        $this->call->view('user/login');
+        $this->call->view('user/Login');
     }
 }
 
