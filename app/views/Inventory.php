@@ -6,6 +6,40 @@
     <title>Inventory - HealthSync</title>
     <link rel="stylesheet" href="<?= base_url(); ?>public/CSS/Style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .btn-primary {
+            background: #b73b2f;
+            padding: 8px 16px;
+            color: #fff;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+        .btn-primary:hover {
+            background: #922e25;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            border-radius: 5px;
+            background: #3498db;
+            color: #fff;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+        .btn-small:hover {
+            background: #217dbb;
+        }
+
+        .btn-danger {
+            background: #e74c3c !important;
+            color: #fff !important;
+        }
+        .btn-danger:hover {
+            background: #c0392b !important;
+        }
+    </style>
 </head>
 <body>
     <?php include('templates/header.php'); ?>
@@ -18,9 +52,8 @@
 
         <main class="dashboard">
             <div class="patients-header">
-                <div>
-                    <h2>Inventory</h2>
-                </div>
+                <div><h2>Inventory</h2></div>
+
                 <div class="header-actions">
                     <form action="<?= site_url('/inventory'); ?>" method="get" class="search-form">
                         <input class="search" name="q" type="text" placeholder="Search inventory" value="<?= html_escape($search_term ?? ''); ?>">
@@ -34,7 +67,8 @@
                         </select>
                         <button type="submit" class="btn">Search</button>
                     </form>
-                    <a href="<?= site_url('/inventory/create'); ?>" class="btn btn-primary">+ Add</a>
+
+                    <a href="<?= site_url('/inventory/create'); ?>" class="btn-primary">+ Add</a>
                 </div>
             </div>
 
@@ -61,9 +95,8 @@
                     $mainQty    = (int) ($row['main_qty'] ?? 0);
                     $reserveQty = (int) ($row['reserve_qty'] ?? 0);
                     $critical   = (int) ($row['critical_level'] ?? 10);
-                    if ($critical <= 0) {
-                        $critical = 10;
-                    }
+                    if ($critical <= 0) $critical = 10;
+
                     if ($mainQty <= $critical) {
                         $lowMain[] = [
                             'name'    => $row['item_name'] ?? '',
@@ -93,50 +126,47 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Stocks</th>
+                            <th>Main Stock</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
+
                     <tbody>
                     <?php if (!empty($summary)): ?>
                         <?php foreach ($summary as $row): ?>
                         <?php
                             $mainQty    = (int) ($row['main_qty'] ?? 0);
                             $reserveQty = (int) ($row['reserve_qty'] ?? 0);
-                            $totalQty   = $mainQty + $reserveQty;
                             $critical   = (int) ($row['critical_level'] ?? 10);
-                            if ($critical <= 0) {
-                                $critical = 10;
-                            }
+                            if ($critical <= 0) $critical = 10;
 
                             $statusLabel = 'OK';
                             if ($mainQty <= $critical && $reserveQty > 0) {
                                 $statusLabel = 'Main low - refill from reserve';
                             } elseif ($mainQty <= $critical && $reserveQty <= 0) {
                                 $statusLabel = 'Need refill - no reserve';
-                            } elseif ($totalQty <= $critical) {
-                                $statusLabel = 'Critical';
-                            } elseif ($totalQty <= ($critical * 1.5)) {
-                                $statusLabel = 'Low';
                             }
                         ?>
                         <tr>
                             <td><?= html_escape($row['item_name']); ?></td>
-                            <td><?= $totalQty; ?></td>
+                            <td><?= $mainQty; ?></td>
                             <td><?= html_escape($statusLabel); ?></td>
+
                             <td class="actions-cell">
                                 <?php $rowBatchId = (int)($row['batch_id'] ?? 0); ?>
+
                                 <?php if ($rowBatchId > 0): ?>
-                                    <a href="<?= site_url('/inventory/edit/'.$rowBatchId); ?>" class="btn btn-small">Edit</a>
+                                    <a href="<?= site_url('/inventory/edit/'.$rowBatchId); ?>" class="btn-small">Edit</a>
+
                                     <form action="<?= site_url('/inventory/delete/'.$rowBatchId); ?>" method="post" style="display:inline-block;">
-                                        <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Are you sure you want to delete this batch?');">Delete</button>
+                                        <button type="submit" class="btn-small btn-danger" onclick="return confirm('Delete batch?');">Delete</button>
                                     </form>
                                 <?php endif; ?>
 
                                 <?php if ($mainQty <= $critical && $reserveQty > 0): ?>
                                     <form action="<?= site_url('/inventory/refill/'.(int)($row['item_id'] ?? 0)); ?>" method="post" style="display:inline-block;">
-                                        <button type="submit" class="btn btn-small">Refill from reserve</button>
+                                        <button type="submit" class="btn-small">Refill</button>
                                     </form>
                                 <?php endif; ?>
 
@@ -147,9 +177,7 @@
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="4" class="empty-state">No inventory items recorded.</td>
-                        </tr>
+                        <tr><td colspan="4" class="empty-state">No inventory items recorded.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -168,36 +196,31 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
+
                     <tbody>
                     <?php
-                    $hasReserveBatches = false;
+                    $hasReserve = false;
                     if (!empty($batches)):
                         foreach ($batches as $batch):
-                            if (($batch['location'] ?? '') !== 'reserve') {
-                                continue;
-                            }
-                            $hasReserveBatches = true;
+                            if (($batch['location'] ?? '') !== 'reserve') continue;
+                            $hasReserve = true;
                     ?>
                         <tr>
-                            <td><?= html_escape($batch['item_name'] ?? ''); ?></td>
-                            <td><?= (int)($batch['remaining_quantity'] ?? 0); ?></td>
-                            <td><?= html_escape(isset($batch['manufacture_date']) ? substr($batch['manufacture_date'], 0, 10) : ''); ?></td>
-                            <td><?= html_escape(isset($batch['expiry_date']) ? substr($batch['expiry_date'], 0, 10) : ''); ?></td>
-                            <td class="actions-cell">
-                                <a href="<?= site_url('/inventory/edit/'.(int)($batch['batch_id'] ?? 0)); ?>" class="btn btn-small">Edit</a>
-                                <form action="<?= site_url('/inventory/delete/'.(int)($batch['batch_id'] ?? 0)); ?>" method="post" style="display:inline-block;">
-                                    <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Are you sure you want to delete this batch?');">Delete</button>
+                            <td><?= html_escape($batch['item_name']); ?></td>
+                            <td><?= (int)$batch['remaining_quantity']; ?></td>
+                            <td><?= substr($batch['manufacture_date'], 0, 10); ?></td>
+                            <td><?= substr($batch['expiry_date'], 0, 10); ?></td>
+                            <td>
+                                <a href="<?= site_url('/inventory/edit/'.(int)$batch['batch_id']); ?>" class="btn-small">Edit</a>
+                                <form action="<?= site_url('/inventory/delete/'.(int)$batch['batch_id']); ?>" method="post" style="display:inline-block;">
+                                    <button type="submit" class="btn-small btn-danger" onclick="return confirm('Delete batch?');">Delete</button>
                                 </form>
                             </td>
                         </tr>
-                    <?php
-                        endforeach;
-                    endif;
-                    ?>
-                    <?php if (!$hasReserveBatches): ?>
-                        <tr>
-                            <td colspan="5" class="empty-state">No reserve batches recorded.</td>
-                        </tr>
+                    <?php endforeach; endif; ?>
+
+                    <?php if (!$hasReserve): ?>
+                        <tr><td colspan="5" class="empty-state">No reserve batches recorded.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -220,44 +243,30 @@
             if (!ctx) return;
 
             const labels = [
-                <?php if (!empty($summary)) : ?>
-                    <?php foreach ($summary as $row): ?>
-                        '<?= addslashes($row['item_name']); ?>',
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <?php if (!empty($summary)) : foreach ($summary as $row): ?>
+                    '<?= addslashes($row['item_name']); ?>',
+                <?php endforeach; endif; ?>
             ];
 
             const mainData = [
-                <?php if (!empty($summary)) : ?>
-                    <?php foreach ($summary as $row): ?>
-                        <?= (int) ($row['main_qty'] ?? 0); ?>,
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <?php if (!empty($summary)) : foreach ($summary as $row): ?>
+                    <?= (int)$row['main_qty']; ?>,
+                <?php endforeach; endif; ?>
             ];
 
             const reserveData = [
-                <?php if (!empty($summary)) : ?>
-                    <?php foreach ($summary as $row): ?>
-                        <?= (int) ($row['reserve_qty'] ?? 0); ?>,
-                    <?php endforeach; ?>
-                <?php endif; ?>
+                <?php if (!empty($summary)) : foreach ($summary as $row): ?>
+                    <?= (int)$row['reserve_qty']; ?>,
+                <?php endforeach; endif; ?>
             ];
 
             new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [
-                        {
-                            label: 'Main',
-                            data: mainData,
-                            backgroundColor: '#b73b2f'
-                        },
-                        {
-                            label: 'Reserve',
-                            data: reserveData,
-                            backgroundColor: '#fbbc04'
-                        }
+                        { label: 'Main', data: mainData, backgroundColor: '#b73b2f' },
+                        { label: 'Reserve', data: reserveData, backgroundColor: '#fbbc04' }
                     ]
                 },
                 options: {
@@ -268,7 +277,8 @@
             });
         })();
     </script>
+
     <script src="<?= base_url(); ?>public/JS/script.js"></script>
+
 </body>
 </html>
-
