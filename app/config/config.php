@@ -79,7 +79,7 @@ $config['ENVIRONMENT']             = 'development';
 | WARNING: You MUST set this value!
 |
 */
-$config['base_url'] 				= 'https://web-project-1-exq0.onrender.com';
+$config['base_url'] 				= 'https://web-project-1-exq0.onrender.com/';
 
 /*
 |--------------------------------------------------------------------------
