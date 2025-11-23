@@ -59,10 +59,10 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 $database['main'] = array(
     'driver'	=> 'mysql',
-    'hostname'	=> 'sql101.infinityfree.com',
+    'hostname'	=> 'sql12.freesqldatabase.com',
     'port'		=> '3306',
-    'username'	=> 'if0_40486496',
-    'password'	=> 'Kinich12231',
+    'username'	=> 'sql12809035',
+    'password'	=> '4FH4zvvX8p',
     'database'	=> 'if0_40486496_healthcare',
     'charset'	=> 'utf8mb4',
     'dbprefix'	=> '',
