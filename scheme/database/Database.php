@@ -183,7 +183,7 @@ class Database {
      *
      * @var array
      */
-    private $operators = array('=', '!=', '<', '>', '<=', '>=', '<>');
+    private $operators = array('=', '!=', '<', '>', '<=', '>=', '<>', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN');
 
     /**
      * Class Constructor

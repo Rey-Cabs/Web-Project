@@ -66,7 +66,7 @@
 
                         <div class="form-group">
                             <label for="critical_level">Critical Level</label>
-                            <input type="number" min="0" id="critical_level" name="critical_level" value="<?= html_escape($batch['critical_level'] ?? 10); ?>">
+                            <input type="number" min="0" id="critical_level" name="critical_level" value="<?= html_escape($batch['critical_level'] ?? 10); ?>" readonly>
                         </div>
 
                         <div class="form-group">
@@ -79,18 +79,20 @@
                             <input type="number" id="quantity" name="quantity" min="1" value="<?= html_escape($batch['quantity'] ?? ''); ?>" required>
                         </div>
 
+                        <?php if (($mode ?? 'create') === 'edit'): ?>
                         <div class="form-group">
-                            <label for="remaining_quantity">Remaining Quantity</label>
-                            <input type="number" id="remaining_quantity" name="remaining_quantity" min="0" value="<?= html_escape($batch['remaining_quantity'] ?? ''); ?>">
+                            <label for="remaining_quantity">Remaining Quantity (current stock)</label>
+                            <input type="number" id="remaining_quantity" name="remaining_quantity" min="0" value="<?= html_escape($batch['remaining_quantity'] ?? ''); ?>" readonly>
+                            <small>Remaining stock is managed automatically when assigning items to patients.</small>
                         </div>
+                        <?php else: ?>
+                            <input type="hidden" id="remaining_quantity" name="remaining_quantity" value="">
+                        <?php endif; ?>
 
                         <div class="form-group">
-                            <label for="location">Location</label>
-                            <select name="location" id="location">
-                                <?php $location = $batch['location'] ?? 'main'; ?>
-                                <option value="main" <?= $location === 'main' ? 'selected' : ''; ?>>Main</option>
-                                <option value="reserve" <?= $location === 'reserve' ? 'selected' : ''; ?>>Reserve</option>
-                            </select>
+                            <label>Location</label>
+                            <input type="text" value="<?= isset($batch['location']) ? ucfirst($batch['location']) : 'Auto-assigned'; ?>" disabled>
+                            <small>Location is assigned automatically between Main and Reserve.</small>
                         </div>
 
                         <div class="form-group">

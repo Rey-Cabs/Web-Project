@@ -16,6 +16,7 @@ class Control extends Controller
         $this->call->model('BatchModel');
         $this->call->model('ItemModel');
         $this->call->model('VerificationModel');
+
         // Ensure PHPMailer classes are available for sending verification and contact emails
         $phpmailerPath = APP_DIR . 'libraries/phpmailer/src/';
         if (file_exists($phpmailerPath . 'PHPMailer.php')) {
@@ -29,6 +30,24 @@ class Control extends Controller
         }
     }
 
+        private function get_session()
+        {
+            if (!isset($this->properties['session']) || $this->properties['session'] === null) {
+                $this->properties['session'] = $this->call->library('session');
+            }
+            return $this->properties['session'];
+        }
+    // Admin-only access helper
+    private function only_admin() {
+        $role = $this->session->userdata('role') ?? '';
+        if ($role !== 'admin') {
+            set_flash_alert('danger', 'You do not have permission to access this page.');
+            redirect('/');
+            exit;
+        }
+    }
+
+    // Pagination helper
     private function configure_pagination(int $total_rows, int $records_per_page, int $page, string $base_path)
     {
         $this->pagination->set_options([
@@ -42,12 +61,14 @@ class Control extends Controller
         $this->pagination->initialize($total_rows, $records_per_page, $page, $base_path);
     }
 
+    // Current page helper
     private function current_page(): int
     {
         $page = (int) ($this->io->get('page') ?? 1);
         return $page > 0 ? $page : 1;
     }
 
+    /*** Public Pages ***/
     public function Landing()
     {
         $this->call->view('Home');
@@ -63,167 +84,191 @@ class Control extends Controller
         $this->call->view('contact');
     }
 
-    public function Dashboard()
-    {
+    /*** Dashboard ***/
+   public function Dashboard()
+{
+    if (!$this->session->userdata('logged_in')) {
+        set_flash_alert('danger', 'Please log in to access the dashboard.');
+        redirect('/auth/login');
+        exit;
+    }
+
+    $userId = $this->session->userdata('user_id');
+    $role   = $this->session->userdata('role');
+
+    // Default counts
+    $totalPatients = $scheduledAppointments = $newPatients = $pendingPrescriptions = 0;
+    $upcomingAppointments = $pastAppointments = [];
+    $activeMedications = $completedMedications = [];
+
+    if ($role === 'admin') {
+        // Admin sees totals and charts
         $totalPatients = (int) ($this->PatientModel->db->table('patients')->select_count('*', 'c')->get()['c'] ?? 0);
         $scheduledAppointments = (int) ($this->PatientModel->db->table('patients')->where_not_null('schedule')->select_count('*', 'c')->get()['c'] ?? 0);
-    $since = date('Y-m-d 00:00:00', strtotime('-30 days'));
-    $newPatients = (int) ($this->PatientModel->db->table('patients')->where('date_created', '>=', $since)->select_count('*', 'c')->get()['c'] ?? 0);
+        $since = date('Y-m-d 00:00:00', strtotime('-30 days'));
+        $newPatients = (int) ($this->PatientModel->db->table('patients')->where('date_created', '>=', $since)->select_count('*', 'c')->get()['c'] ?? 0);
         $pendingPrescriptions = (int) ($this->PatientModel->db->table('patients')->where_not_null('medicine')->where('medicine', '!=', '')->select_count('*', 'c')->get()['c'] ?? 0);
+    } else {
+        // User sees only their own data
+        $upcomingAppointments = $this->PatientModel->get_upcoming_by_user($userId);
+        $pastAppointments     = $this->PatientModel->get_past_by_user($userId);
+        $activeMedications    = $this->MedicationModel->get_active_by_user($userId);
+        $completedMedications = $this->MedicationModel->get_completed_by_user($userId);
+    }
 
-        $data = [
-            'totalPatients' => $totalPatients,
-            'scheduledAppointments' => $scheduledAppointments,
-            'newPatients' => $newPatients,
-            'pendingPrescriptions' => $pendingPrescriptions
+    $data = [
+        'user'                   => $this->session->userdata(),
+        'role'                   => $role,
+        'totalPatients'          => $totalPatients,
+        'scheduledAppointments'  => $scheduledAppointments,
+        'newPatients'            => $newPatients,
+        'pendingPrescriptions'   => $pendingPrescriptions,
+        'upcomingAppointments'   => $upcomingAppointments,
+        'pastAppointments'       => $pastAppointments,
+        'activeMedications'      => $activeMedications,
+        'completedMedications'   => $completedMedications
+    ];
+
+    $this->call->view('Dashboard', $data);
+}
+
+/*** Charts ***/
+public function PatientsChart()
+{
+    if (!$this->session->userdata('logged_in')) {
+        http_response_code(403);
+        exit('Unauthorized');
+    }
+
+    $period = strtolower(trim($this->io->get('period') ?? 'weekly'));
+    $period = in_array($period, ['weekly','monthly','yearly'], true) ? $period : 'weekly';
+    $count = $period === 'weekly' ? 7 : ($period === 'monthly' ? 30 : 12);
+
+    $result = $this->PatientModel->aggregate_counts($period, $count);
+
+    header('Content-Type: application/json');
+    echo json_encode($result);
+    exit;
+}
+
+public function PatientsDisease()
+{
+    if (!$this->session->userdata('logged_in')) {
+        http_response_code(403);
+        exit('Unauthorized');
+    }
+
+    $topN = 6; // configurable number of top diseases
+    $agg = $this->PatientModel->aggregate_by_disease($topN);
+
+    $payload = [];
+    $labels  = $agg['labels'] ?? [];
+    $data    = $agg['data'] ?? [];
+
+    $total = array_sum($data) ?: 1;
+    foreach ($labels as $idx => $label) {
+        $count = (int)($data[$idx] ?? 0);
+        $payload[] = [
+            'disease'     => $label,
+            'count'       => $count,
+            'percentage'  => round(($count / $total) * 100, 2),
         ];
-
-        $this->call->view('Dashboard', $data);
-    }
-    public function PatientsChart()
-    {
-        $period = trim(strtolower($this->io->get('period') ?? 'weekly'));
-        if (!in_array($period, ['weekly','monthly','yearly'], true)) {
-            $period = 'weekly';
-        }
-
-        $count = 4;
-        if ($period === 'weekly') $count = 7;
-
-        $result = $this->PatientModel->aggregate_counts($period, $count);
-
-        header('Content-Type: application/json');
-        echo json_encode($result);
-        exit;
     }
 
-    public function PatientsDisease()
-    {
-        $result = $this->PatientModel->aggregate_by_disease(6);
-        header('Content-Type: application/json');
-        echo json_encode($result);
-        exit;
-    }
-    public function PatientsPredict()
-    {
-        $period = trim(strtolower($this->io->get('period') ?? 'weekly'));
-        if (!in_array($period, ['weekly','monthly','yearly'], true)) {
-            $period = 'weekly';
-        }
-        $result = $this->PatientModel->predict_next($period);
-        header('Content-Type: application/json');
-        echo json_encode($result);
-        exit;
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+    exit;
+}
+
+public function PatientsPredict()
+{
+    if (!$this->session->userdata('logged_in')) {
+        http_response_code(403);
+        exit('Unauthorized');
     }
 
-    public function Login()
-    {
-        if ($this->io->method(true) === 'POST') {
-            $email = trim($this->io->post('email') ?? '');
-            $email = normalize_email($email);
-            $password = (string) ($this->io->post('password') ?? '');
+    $period = strtolower(trim($this->io->get('period') ?? 'weekly'));
+    $period = in_array($period, ['weekly','monthly','yearly'], true) ? $period : 'weekly';
 
-            if ($email === '' || $password === '') {
-                set_flash_alert('danger', 'Email and password are required.');
-                return redirect('/auth/login');
+    $count = $period === 'weekly' ? 7 : ($period === 'monthly' ? 30 : 12);
+
+    // Get aggregate counts (labels + data series)
+    $agg = $this->PatientModel->aggregate_counts($period, $count);
+    $labels = $agg['labels'] ?? [];
+    $values = $agg['data'] ?? [];
+
+    // Build historical payload expected by JS: array of {label, count}
+    $historicalPayload = [];
+    foreach ($labels as $idx => $label) {
+        $historicalPayload[] = [
+            'label' => $label,
+            'count' => (int)($values[$idx] ?? 0),
+        ];
+    }
+
+    // Rolling-average prediction over the values series
+    $predictedData = [];
+    $rollingWindow = 3;
+    $valueCount = count($values);
+    for ($i = 0; $i < $valueCount; $i++) {
+        $window = array_slice($values, max(0, $i - $rollingWindow + 1), $rollingWindow);
+        $denom  = count($window) ?: 1;
+        $predictedData[] = (int)round(array_sum($window) / $denom);
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'historical' => $historicalPayload,
+        'predicted'  => $predictedData
+    ]);
+    exit;
+}
+
+
+    /*** Authentication ***/
+public function login() {
+    if ($this->form_validation->submitted()) {
+        $identifier = trim($this->io->post('email'));
+        $password   = $this->io->post('password');
+
+        $user_id = $this->lauth->login_by_identifier($identifier, $password);
+
+        if ($user_id) {
+            $user = $this->UserModel->find($user_id);
+
+            if (!$user) {
+                set_flash_alert('danger', 'User not found.');
+                redirect('auth/login');
+                exit;
             }
 
-            $user = $this->UserModel->find_by_email($email);
-            try {
-                $verified = $user ? (password_verify($password, $user['password']) ? 'yes' : 'no') : 'no_user';
-                $debug = [
-                    'email' => $email,
-                    'found'  => $user ? 'yes' : 'no',
-                    'pw_length' => isset($user['password']) ? strlen($user['password']) : 0,
-                    'verify' => $verified
-                ];
-                @file_put_contents(APP_DIR . 'logs/auth_debug.log', date('c') . ' ' . json_encode($debug) . PHP_EOL, FILE_APPEND);
-            } catch (\Exception $e) {
-            }
-            if ($user && password_verify($password, $user['password'])) {
-                // instead of logging in immediately, send a 6-digit code to the user's email and require verification
-                // if a pending login code already exists, don't create another to avoid duplicates
-                if ($this->VerificationModel->pending_exists($email, 'login')) {
-                    set_flash_alert('info', 'A verification code was already sent to your email. Please check your inbox.');
-                    return redirect('/auth/verify?purpose=login');
-                }
+            $role = $this->lauth->get_user_role($user_id);
 
-                $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-                $this->VerificationModel->create_code($email, $user['id'], 'login', $code, new DateTime('+5 minutes'));
+            $this->session->sess_regenerate(TRUE);
+            $this->session->set_userdata([
+                'user_id'    => $user['id'],
+                'user_email' => $user['email'],
+                'user_name'  => $user['first_name'] . ' ' . $user['last_name'],
+                'role'       => $role ?? 'user',
+                'first_name' => $user['first_name'],
+                'logged_in'  => TRUE
+            ]);
 
-                // store pending login data in session
-                $this->session->set_userdata(['pending_login' => ['user_id' => $user['id'], 'email' => $email, 'first_name' => $user['first_name']]]);
-
-                // send email with PHPMailer
-                try {
-                    $m = new PHPMailer\PHPMailer\PHPMailer(true);
-                    $m->isSMTP();
-                    $m->Host       = 'smtp.gmail.com';
-                    $m->SMTPAuth   = true;
-                    $m->Username   = 'jhonreycabral@gmail.com';
-                    $m->Password   = 'psazwvwetovmftmo';
-                    $m->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                    $m->Port       = 587;
-                    $m->setFrom('jhonreycabral@gmail.com', 'HealthSync');
-                        $m->addAddress($email, $user['first_name']);
-                    $m->isHTML(true);
-                    $m->Subject = 'Your HealthSync login verification code';
-                    $m->Body = 
-                        '<div style="font-family: Arial, sans-serif; background-color:#F0E68C; padding:20px;">
-                        <div style="max-width:600px; margin:auto; background:white; border-radius:8px; overflow:hidden;
-                                    border:3px solid #B00020;">
-
-                            <div style="background:#B00020; padding:15px; text-align:center;">
-                                <h1 style="color:white; margin:0; font-size:24px;">HealthSync Verification</h1>
-                            </div>
-
-                            <div style="padding:25px; color:#333;">
-                                <p style="font-size:16px;">Hello <strong>' . htmlspecialchars($first_name) . '</strong>,</p>
-
-                                <p style="font-size:16px;">
-                                    Thank you for signing up with <strong>HealthSync</strong>.<br>
-                                    Use the verification code below to complete your registration:
-                                </p>
-
-                                <div style="
-                                    margin:25px 0;
-                                    padding:20px;
-                                    background:#F0E68C;
-                                    border:2px dashed #B00020;
-                                    text-align:center;
-                                    border-radius:6px;
-                                ">
-                                    <span style="font-size:32px; font-weight:bold; color:#B00020;">' . $code . '</span>
-                                </div>
-
-                                <p style="font-size:15px;">
-                                    This code is valid for <strong>5 minutes</strong>.  
-                                    If you did not request this, please ignore this email.
-                                </p>
-                            </div>
-
-                            <div style="background:#B00020; text-align:center; padding:10px;">
-                                <p style="color:white; margin:0; font-size:14px;">
-                                    © ' . date("Y") . ' HealthSync. All rights reserved.
-                                </p>
-                            </div>
-
-                        </div ';                   
-
-                    $m->send();
-                } catch (\Exception $e) {
-                }
-
-                set_flash_alert('success', 'A verification code was sent to your email. Enter the code to complete login.');
-                return redirect('/auth/verify?purpose=login');
-            }
-
+            $this->lauth->set_logged_in($user_id);
+            redirect('/dashboard');
+            exit;
+        } else {
+            // Credentials invalid: reload login page with flash
             set_flash_alert('danger', 'Invalid email or password.');
-            return redirect('/auth/login');
+            redirect('auth/login');
+            exit;
         }
-
-        $this->call->view('user/Login');
+    } else {
+        // Show login page
+        $this->call->view('user/login');
     }
+}
+
 
     public function Signup()
     {
@@ -237,9 +282,7 @@ class Control extends Controller
             $password   = (string) ($this->io->post('password') ?? '');
             $confirm    = (string) ($this->io->post('confirm_password') ?? '');
             $role = trim($this->io->post('role') ?? 'user');
-            if (!in_array($role, ['user', 'admin'], true)) {
-                $role = 'user';
-            }
+            if (!in_array($role, ['user', 'admin'], true)) $role = 'user';
 
             if ($first_name === '' || $last_name === '' || $age <= 0 || $email === '' || $password === '') {
                 set_flash_alert('danger', 'Please complete all required fields.');
@@ -293,23 +336,21 @@ class Control extends Controller
                 $m->addAddress($email, $first_name);
                 $m->isHTML(true);
                 $m->Subject = 'Your HealthSync signup verification code';
+
+                // **Your original styled HTML for signup email**
                 $m->Body = '
                     <div style="font-family: Arial, sans-serif; background-color:#F0E68C; padding:20px;">
                         <div style="max-width:600px; margin:auto; background:white; border-radius:8px; overflow:hidden;
                                     border:3px solid #B00020;">
-
                             <div style="background:#B00020; padding:15px; text-align:center;">
                                 <h1 style="color:white; margin:0; font-size:24px;">HealthSync Verification</h1>
                             </div>
-
                             <div style="padding:25px; color:#333;">
                                 <p style="font-size:16px;">Hello <strong>' . htmlspecialchars($first_name) . '</strong>,</p>
-
                                 <p style="font-size:16px;">
                                     Thank you for signing up with <strong>HealthSync</strong>.<br>
                                     Use the verification code below to complete your registration:
                                 </p>
-
                                 <div style="
                                     margin:25px 0;
                                     padding:20px;
@@ -320,25 +361,20 @@ class Control extends Controller
                                 ">
                                     <span style="font-size:32px; font-weight:bold; color:#B00020;">' . $code . '</span>
                                 </div>
-
                                 <p style="font-size:15px;">
                                     This code is valid for <strong>5 minutes</strong>.  
                                     If you did not request this, please ignore this email.
                                 </p>
                             </div>
-
                             <div style="background:#B00020; text-align:center; padding:10px;">
                                 <p style="color:white; margin:0; font-size:14px;">
                                     © ' . date("Y") . ' HealthSync. All rights reserved.
                                 </p>
                             </div>
-
                         </div>
                     </div>';
-
                 $m->send();
-            } catch (\Exception $e) {
-            }
+            } catch (\Exception $e) { /* ignore */ }
 
             set_flash_alert('success', 'A verification code has been sent to your email. Please enter it to complete signup.');
             return redirect('/auth/verify?purpose=signup');
@@ -347,6 +383,7 @@ class Control extends Controller
         $this->call->view('user/Signup');
     }
 
+    /*** Logout ***/
     public function Logout()
     {
         $this->session->sess_destroy();
@@ -659,102 +696,350 @@ class Control extends Controller
         return redirect('/auth/login');
     }
 
-    public function Patients()
-    {
-        $page    = $this->current_page();
-        $q       = trim($this->io->get('q') ?? '');
-        $perPage = 10;
+   public function Patients()
+{
+    $page    = $this->current_page();
+    $q       = trim($this->io->get('q') ?? '');
+    $perPage = 10;
 
+    // Get user role and user_id from session
+    $role    = $this->session->userdata('role') ?? 'user';
+    $user_id = $this->session->userdata('user_id') ?? null;
+
+    // Initialize variables
+    $patients     = [];
+    $patientInfo  = null;
+    $show_register_prompt = false;
+    $isPatient = false; // <- fix for undefined variable
+
+    // Fetch patients based on role
+    if ($role === 'admin') {
+        // Admin sees all patients
         $result = $this->PatientModel->get_paginated($q, $perPage, $page);
-        $this->configure_pagination($result['total_rows'], $perPage, $page, '/patients?q=' . urlencode($q));
+    } else {
+        // Regular user: fetch their own patient info
+        $userPatients = $this->PatientModel->get_by_role('user', $user_id, $q);
+        $total = count($userPatients);
 
-        $data = [
-            'patients'    => $result['records'],
-            'pagination'  => $this->pagination->paginate(),
-            'search_term' => $q
+        // Pagination (for consistency)
+        $offset = ($page - 1) * $perPage;
+        $patients = array_slice($userPatients, $offset, $perPage);
+
+        // Check if user has a patient record
+        if (!empty($patients)) {
+            $patientInfo = $patients[0];
+            $isPatient = true; // user has a patient record
+        } else {
+            $show_register_prompt = true;
+            $isPatient = false; // user is not yet a patient
+        }
+
+        $result = [
+            'records' => $patients,
+            'total_rows' => $total
         ];
-
-        $this->call->view('patient', $data);
     }
 
-    public function Appointments()
-    {
-        $page    = $this->current_page();
-        $q       = trim($this->io->get('q') ?? '');
-        $perPage = 10;
+    // Configure pagination
+    $this->configure_pagination($result['total_rows'], $perPage, $page, '/patients?q=' . urlencode($q));
 
+    // Prepare data for view
+    $data = [
+        'patients'             => $result['records'],
+        'pagination'           => $this->pagination->paginate(),
+        'search_term'          => $q,
+        'role'                 => $role,
+        'patientInfo'          => $patientInfo,
+        'show_register_prompt' => $show_register_prompt,
+        'isPatient'            => $isPatient // pass variable to view
+    ];
+
+    // Load patient view
+    $this->call->view('patient', $data);
+}
+
+
+
+    public function Appointments()
+{
+    $page    = $this->current_page();
+    $q       = trim($this->io->get('q') ?? '');
+    $perPage = 10;
+
+    // Get user role and user_id from session
+    $role    = $this->session->userdata('role') ?? 'user';
+    $user_id = $this->session->userdata('user_id') ?? null;
+
+    if ($role === 'admin') {
+        // Admin sees all appointments
         $result = $this->PatientModel->get_paginated($q, $perPage, $page, [
             'has_schedule' => true
         ]);
+        $isPatient = true; // Admin can see all
+    } else {
+        // Regular user: fetch only their patient record
+        $patients = $this->PatientModel->get_by_role('user', $user_id);
 
-        $this->configure_pagination($result['total_rows'], $perPage, $page, '/appointments?q=' . urlencode($q));
+        if (!empty($patients)) {
+            $appointments_all = [];
+            foreach ($patients as $p) {
+                if (!empty($p['schedule'])) {
+                    $appointments_all[] = $p;
+                }
+            }
 
-        $data = [
-            'appointments' => $result['records'],
-            'pagination'   => $this->pagination->paginate(),
-            'search_term'  => $q
-        ];
-
-        $this->call->view('appointments', $data);
+            $total = count($appointments_all);
+            $offset = ($page - 1) * $perPage;
+            $result = [
+                'records' => array_slice($appointments_all, $offset, $perPage),
+                'total_rows' => $total
+            ];
+            $isPatient = true;
+        } else {
+            $result = [
+                'records' => [],
+                'total_rows' => 0
+            ];
+            $isPatient = false;
+        }
     }
 
-    public function Medications()
-    {
-        $page    = $this->current_page();
-        $q       = trim($this->io->get('q') ?? '');
-        $perPage = 10;
+    // Configure pagination
+    $this->configure_pagination($result['total_rows'], $perPage, $page, '/appointments?q=' . urlencode($q));
 
-        $result = $this->PatientModel->get_paginated($q, $perPage, $page, [
-            'has_medicine' => true
-        ]);
+    $data = [
+        'appointments'        => $result['records'],
+        'pagination'          => $this->pagination->paginate(),
+        'search_term'         => $q,
+        'role'                => $role,
+        'isPatient'           => $isPatient,
+        'show_register_prompt' => !$isPatient && $role !== 'admin'
+    ];
 
-        $this->configure_pagination($result['total_rows'], $perPage, $page, '/medications?q=' . urlencode($q));
+    $this->call->view('appointments', $data);
+}
+public function Medications()
+{
+    $page    = $this->current_page();
+    $q       = trim($this->io->get('q') ?? '');
+    $perPage = 10;
 
-        $data = [
-            'medications' => $result['records'],
-            'pagination'  => $this->pagination->paginate(),
-            'search_term' => $q
-        ];
+    $session = $this->get_session();
+    $userId  = $session->userdata('user_id'); // logged-in user
+    $role    = $session->userdata('role') ?? 'user'; // get role, default to 'user'
 
-        $this->call->view('medications', $data);
+    // Fetch paginated medications for the current user only
+    $result = $this->PatientModel->get_paginated($q, $perPage, $page, [
+        'has_medicine' => true,
+        'user_id'      => $userId,
+    ]);
+
+    $today = new DateTime();
+
+    foreach ($result['records'] as &$medication) {
+
+        // Skip medications not belonging to the current user
+        if (!isset($medication['user_id']) || $medication['user_id'] !== $userId) continue;
+
+        // Ensure we have start_date and end_date
+        if (empty($medication['start_date']) || empty($medication['end_date'])) {
+            if (!empty($medication['given_date']) && !empty($medication['duration'])) {
+                $dates = $this->calculateMedicationDates($medication['given_date'], $medication['duration']);
+                $medication['start_date'] = $dates['start_date'];
+                $medication['end_date']   = $dates['end_date'];
+            } else {
+                $medication['status'] = 'Unknown';
+                continue;
+            }
+        }
+
+        // Calculate status
+        $start = new DateTime($medication['start_date']);
+        $end   = new DateTime($medication['end_date']);
+
+        if ($today < $start) {
+            $medication['status'] = 'Upcoming';
+        } elseif ($today > $end) {
+            $medication['status'] = 'Completed';
+        } else {
+            $medication['status'] = 'Ongoing';
+        }
     }
+    unset($medication); // break reference
 
-    public function Records()
-    {
-        $page    = $this->current_page();
-        $q       = trim($this->io->get('q') ?? '');
-        $perPage = 10;
+    $this->configure_pagination($result['total_rows'], $perPage, $page, '/medications?q=' . urlencode($q));
 
+    $data = [
+        'medications' => $result['records'],
+        'pagination'  => $this->pagination->paginate(),
+        'search_term' => $q,
+        'userId'      => $userId,
+        'role'        => $role, // pass role to the view
+    ];
+
+    $this->call->view('medications', $data);
+}
+
+
+/**
+ * Calculate start and end dates based on given date and duration.
+ * Duration can be in days, weeks, or months, e.g., '7 days', '1 week', '1 month'
+ */
+private function calculateMedicationDates($givenDate, $duration)
+{
+    $start = new DateTime($givenDate);
+    $end   = clone $start;
+
+    // Convert duration into a string suitable for DateTime modify
+    $durationStr = trim($duration);
+    if (is_numeric($durationStr)) {
+        $durationStr .= ' days'; // default to days if numeric
+    }
+    $end->modify("+$durationStr");
+
+    return [
+        'start_date' => $start->format('Y-m-d'),
+        'end_date'   => $end->format('Y-m-d')
+    ];
+}
+public function Records()
+{
+    $page    = $this->current_page();
+    $q       = trim($this->io->get('q') ?? '');
+    $perPage = 10;
+
+    $userId = $this->session->userdata('user_id');
+    $role   = $this->session->userdata('role'); // 'admin' or 'user'
+
+    if ($role === 'admin') {
+        // Admin: fetch all patients with pagination
         $result = $this->PatientModel->get_paginated($q, $perPage, $page);
-        $this->configure_pagination($result['total_rows'], $perPage, $page, '/records?q=' . urlencode($q));
-
-        $data = [
-            'records'     => $result['records'],
-            'pagination'  => $this->pagination->paginate(),
-            'search_term' => $q
-        ];
-
-        $this->call->view('records', $data);
+    } else {
+        // Normal user: fetch only their own record
+        $result = $this->PatientModel->get_paginated($q, $perPage, $page, [
+            'patient_id' => $userId
+        ]);
     }
 
-    public function Inventory()
-    {
-        $page    = $this->current_page();
-        $q       = trim($this->io->get('q') ?? '');
-        $perPage = 10;
+    $this->configure_pagination($result['total_rows'], $perPage, $page, '/records?q=' . urlencode($q));
 
-        $result = $this->BatchModel->paginate_with_items($q, $perPage, $page);
-        $this->configure_pagination($result['total_rows'], $perPage, $page, '/inventory?q=' . urlencode($q));
-
-        $data = [
-            'batches'      => $result['records'],
-            'pagination'   => $this->pagination->paginate(),
-            'search_term'  => $q,
-            'total_main'   => $this->BatchModel->total_by_location('main'),
-            'total_reserve'=> $this->BatchModel->total_by_location('reserve'),
-            'summary'      => $this->BatchModel->inventory_summary()
+    $records = [];
+    foreach ($result['records'] as $patient) {
+        $records[] = [
+            'id'         => $patient['id'],
+            'patient_id' => $patient['id'],
+            'first_name' => $patient['first_name'],
+            'last_name'  => $patient['last_name'],
+            'age'        => $patient['age'],
+            'email'      => $patient['email'],
+            'disease'    => $patient['disease'] ?? '-',
+            'type'       => $patient['type'] ?? '-',
+            'medicine'   => $patient['medicine'] ?? '-',
+            'schedule'   => $patient['schedule'] ?? '-',
+            'duration'   => $patient['duration'] ?? '-',
+            'status'     => $patient['status'] ?? '-',
         ];
-
-        $this->call->view('Inventory', $data);
     }
+
+    $data = [
+        'records'     => $records,
+        'pagination'  => $this->pagination->paginate(),
+        'search_term' => $q,
+        'role'        => $role
+    ];
+
+    $this->call->view('records', $data);
+}
+
+public function Inventory()
+{
+    $page    = $this->current_page();
+    $q       = trim($this->io->get('q') ?? '');
+    $perPage = 10;
+
+    $category = trim($this->io->get('category') ?? '');
+    $allowedCategories = ['Medicine','Equipment','Supply','Other'];
+    if (!in_array($category, $allowedCategories, true)) {
+        $category = '';
+    }
+
+    $result  = $this->BatchModel->paginate_with_items($q, $perPage, $page, $category);
+    $summary = $this->BatchModel->inventory_summary();
+
+    // Totals for top cards: always reflect all stock in main/reserve
+    $totalMain    = $this->BatchModel->total_by_location('main');
+    $totalReserve = $this->BatchModel->total_by_location('reserve');
+
+    // Summary for table/chart: filtered by category and search term (if any)
+    $filteredSummary = [];
+    $searchTerm = strtolower($q);
+    foreach ($summary as $row) {
+        // Filter by category
+        if ($category !== '' && ($row['category'] ?? '') !== $category) {
+            continue;
+        }
+
+        // Filter by search term on item name or category
+        if ($searchTerm !== '') {
+            $name = strtolower($row['item_name'] ?? '');
+            $cat  = strtolower($row['category'] ?? '');
+            if (strpos($name, $searchTerm) === false && strpos($cat, $searchTerm) === false) {
+                continue;
+            }
+        }
+
+        // Normalize critical level for display/logic (fixed at 10 for all items)
+        $row['critical_level'] = 10;
+
+        $filteredSummary[] = $row;
+    }
+
+    $this->configure_pagination(
+        $result['total_rows'],
+        $perPage,
+        $page,
+        '/inventory?q=' . urlencode($q) . '&category=' . urlencode($category)
+    );
+
+    $data = [
+        'batches'       => $result['records'],
+        'pagination'    => $this->pagination->paginate(),
+        'search_term'   => $q,
+        'category'      => $category,
+        'total_main'    => $totalMain,
+        'total_reserve' => $totalReserve,
+        'summary'       => $filteredSummary
+    ];
+
+    $this->call->view('Inventory', $data);
+}
+
+public function recordView($id)
+{
+    $role = $this->session->userdata('role') ?? 'user';
+    if ($role !== 'admin') {
+        show_error('Unauthorized access.');
+        return;
+    }
+
+    $patientId = (int) $id;
+    $patient   = $this->PatientModel->find_patient($patientId);
+    if (!$patient) {
+        show_error('Patient not found.');
+        return;
+    }
+
+    $userId  = (int) ($patient['user_id'] ?? 0);
+    $history = $this->PatientModel->get_past_by_user($userId);
+    $upcoming = $this->PatientModel->get_upcoming_by_user($userId);
+
+    $data = [
+        'patient'  => $patient,
+        'history'  => $history,
+        'upcoming' => $upcoming,
+        'role'     => $role
+    ];
+
+    $this->call->view('record_view', $data);
+}
 }

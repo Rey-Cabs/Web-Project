@@ -53,11 +53,12 @@ class Lauth {
         return password_hash($password, PASSWORD_BCRYPT, $options);
     }
 
-    public function register($username, $email, $password, $email_token)
+    public function register($first_name, $last_name, $email, $password, $email_token)
     {
         $this->LAVA->db->transaction();
         $data = array(
-            'username' => $username,
+            'first_name' => $first_name,
+            'last_name' => $last_name,
             'password' => $this->passwordhash($password),
             'email' => $email,
             'email_token' => $email_token
@@ -94,7 +95,8 @@ class Lauth {
         $row = $this->LAVA->db
                         ->table('users')
                         ->where('email', $identifier)
-                        ->or_where('username', $identifier)
+                        ->or_where('first_name', $identifier)
+                        ->or_where('last_name', $identifier)
                         ->get();
         if($row) {
             if(password_verify($password, $row['password'])) {
@@ -167,12 +169,12 @@ class Lauth {
     {
         $row = $this->LAVA->db
                         ->table('users')
-                        ->select('username')                    
+                        ->select('first_name, last_name')                    
                         ->where('id', $user_id)
                         ->limit(1)
                         ->get();
         if($row) {
-            return html_escape($row['username']);
+            return html_escape($row['first_name'] . ' ' . $row['last_name']);
         }
     }
 
@@ -215,7 +217,7 @@ class Lauth {
     public function send_verification_email($email) {
         return $this->LAVA->db
                         ->table('users')
-                        ->select('username, email_token')
+                        ->select('first_name, last_name, email_token')
                         ->where('email', $email)
                         ->where_null('email_verified_at')
                         ->get(); 

@@ -24,6 +24,14 @@
                 <div class="header-actions">
                     <form action="<?= site_url('/inventory'); ?>" method="get" class="search-form">
                         <input class="search" name="q" type="text" placeholder="Search inventory" value="<?= html_escape($search_term ?? ''); ?>">
+                        <?php $selectedCategory = $category ?? ''; ?>
+                        <select name="category" class="search">
+                            <option value="" <?= $selectedCategory === '' ? 'selected' : ''; ?>>All types</option>
+                            <option value="Medicine" <?= $selectedCategory === 'Medicine' ? 'selected' : ''; ?>>Medicine</option>
+                            <option value="Equipment" <?= $selectedCategory === 'Equipment' ? 'selected' : ''; ?>>Equipment</option>
+                            <option value="Supply" <?= $selectedCategory === 'Supply' ? 'selected' : ''; ?>>Supply</option>
+                            <option value="Other" <?= $selectedCategory === 'Other' ? 'selected' : ''; ?>>Other</option>
+                        </select>
                         <button type="submit" class="btn">Search</button>
                     </form>
                     <a href="<?= site_url('/inventory/create'); ?>" class="btn btn-primary">+ Add</a>
@@ -46,54 +54,153 @@
                 </div>
             </div>
 
+            <?php
+            $lowMain = [];
+            if (!empty($summary)) {
+                foreach ($summary as $row) {
+                    $mainQty    = (int) ($row['main_qty'] ?? 0);
+                    $reserveQty = (int) ($row['reserve_qty'] ?? 0);
+                    $critical   = (int) ($row['critical_level'] ?? 10);
+                    if ($critical <= 0) {
+                        $critical = 10;
+                    }
+                    if ($mainQty <= $critical) {
+                        $lowMain[] = [
+                            'name'    => $row['item_name'] ?? '',
+                            'main'    => $mainQty,
+                            'reserve' => $reserveQty,
+                        ];
+                    }
+                }
+            }
+            ?>
+
+            <?php if (!empty($lowMain)) : ?>
+            <div class="alert-card warning">
+                <h3>Items with low main stock (≤ 10)</h3>
+                <ul>
+                    <?php foreach ($lowMain as $item): ?>
+                        <li>
+                            <?= html_escape($item['name']); ?> - Main: <?= (int) $item['main']; ?>, Reserve: <?= (int) $item['reserve']; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
+
             <div class="table-container">
                 <table class="patients-table">
                     <thead>
                         <tr>
-                            <th>Item</th>
-                            <th>Batch Code</th>
-                            <th>Received</th>
-                            <th>Expiry</th>
-                            <th>Total Qty</th>
-                            <th>Remaining</th>
-                            <th>Location</th>
-                            <th class="center">Edit</th>
-                            <th class="center">Remove</th>
+                            <th>Name</th>
+                            <th>Stocks</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                    <?php if(!empty($batches)): ?>
-                        <?php foreach($batches as $batch): ?>
+                    <?php if (!empty($summary)): ?>
+                        <?php foreach ($summary as $row): ?>
                         <?php
-                            $received = !empty($batch['received_date']) ? substr($batch['received_date'], 0, 10) : '--';
-                            $expiry   = !empty($batch['expiry_date']) ? substr($batch['expiry_date'], 0, 10) : '--';
+                            $mainQty    = (int) ($row['main_qty'] ?? 0);
+                            $reserveQty = (int) ($row['reserve_qty'] ?? 0);
+                            $totalQty   = $mainQty + $reserveQty;
+                            $critical   = (int) ($row['critical_level'] ?? 10);
+                            if ($critical <= 0) {
+                                $critical = 10;
+                            }
+
+                            $statusLabel = 'OK';
+                            if ($mainQty <= $critical && $reserveQty > 0) {
+                                $statusLabel = 'Main low - refill from reserve';
+                            } elseif ($mainQty <= $critical && $reserveQty <= 0) {
+                                $statusLabel = 'Need refill - no reserve';
+                            } elseif ($totalQty <= $critical) {
+                                $statusLabel = 'Critical';
+                            } elseif ($totalQty <= ($critical * 1.5)) {
+                                $statusLabel = 'Low';
+                            }
                         ?>
                         <tr>
-                            <td><?= html_escape($batch['item_name']); ?></td>
-                            <td><?= html_escape($batch['batch_code']); ?></td>
-                            <td><?= html_escape($received); ?></td>
-                            <td><?= html_escape($expiry); ?></td>
-                            <td><?= html_escape($batch['quantity']); ?></td>
-                            <td><?= html_escape($batch['remaining_quantity']); ?></td>
-                            <td><?= html_escape(ucfirst($batch['location'])); ?></td>
-                            <td class="center">
-                                <a href="<?= site_url('/inventory/edit/'.$batch['batch_id']); ?>" class="edit-btn" title="Edit batch">✏️</a>
-                            </td>
-                            <td class="center">
-                                <form action="<?= site_url('/inventory/delete/'.$batch['batch_id']); ?>" method="POST" class="inline-form" onsubmit="return confirm('Remove this batch?');">
-                                    <button type="submit" class="delete-btn" title="Remove batch">🗑️</button>
-                                </form>
+                            <td><?= html_escape($row['item_name']); ?></td>
+                            <td><?= $totalQty; ?></td>
+                            <td><?= html_escape($statusLabel); ?></td>
+                            <td class="actions-cell">
+                                <?php $rowBatchId = (int)($row['batch_id'] ?? 0); ?>
+                                <?php if ($rowBatchId > 0): ?>
+                                    <a href="<?= site_url('/inventory/edit/'.$rowBatchId); ?>" class="btn btn-small">Edit</a>
+                                    <form action="<?= site_url('/inventory/delete/'.$rowBatchId); ?>" method="post" style="display:inline-block;">
+                                        <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Are you sure you want to delete this batch?');">Delete</button>
+                                    </form>
+                                <?php endif; ?>
+
+                                <?php if ($mainQty <= $critical && $reserveQty > 0): ?>
+                                    <form action="<?= site_url('/inventory/refill/'.(int)($row['item_id'] ?? 0)); ?>" method="post" style="display:inline-block;">
+                                        <button type="submit" class="btn btn-small">Refill from reserve</button>
+                                    </form>
+                                <?php endif; ?>
+
+                                <?php if ($rowBatchId <= 0 && !($mainQty <= $critical && $reserveQty > 0)): ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="9" class="empty-state">No inventory batches recorded.</td>
+                            <td colspan="4" class="empty-state">No inventory items recorded.</td>
                         </tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
                 <?php if (!empty($pagination)) echo $pagination; ?>
+            </div>
+
+            <div class="table-container">
+                <h3>Reserve Batches</h3>
+                <table class="patients-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Stocks</th>
+                            <th>Manufacture Date</th>
+                            <th>Expiration Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    $hasReserveBatches = false;
+                    if (!empty($batches)):
+                        foreach ($batches as $batch):
+                            if (($batch['location'] ?? '') !== 'reserve') {
+                                continue;
+                            }
+                            $hasReserveBatches = true;
+                    ?>
+                        <tr>
+                            <td><?= html_escape($batch['item_name'] ?? ''); ?></td>
+                            <td><?= (int)($batch['remaining_quantity'] ?? 0); ?></td>
+                            <td><?= html_escape(isset($batch['manufacture_date']) ? substr($batch['manufacture_date'], 0, 10) : ''); ?></td>
+                            <td><?= html_escape(isset($batch['expiry_date']) ? substr($batch['expiry_date'], 0, 10) : ''); ?></td>
+                            <td class="actions-cell">
+                                <a href="<?= site_url('/inventory/edit/'.(int)($batch['batch_id'] ?? 0)); ?>" class="btn btn-small">Edit</a>
+                                <form action="<?= site_url('/inventory/delete/'.(int)($batch['batch_id'] ?? 0)); ?>" method="post" style="display:inline-block;">
+                                    <button type="submit" class="btn btn-small btn-danger" onclick="return confirm('Are you sure you want to delete this batch?');">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    <?php
+                        endforeach;
+                    endif;
+                    ?>
+                    <?php if (!$hasReserveBatches): ?>
+                        <tr>
+                            <td colspan="5" class="empty-state">No reserve batches recorded.</td>
+                        </tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
 
             <div class="chart-section">

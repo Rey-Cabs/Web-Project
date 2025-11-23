@@ -39,7 +39,7 @@ class UserModel extends Model
     {
         return $this->db
             ->table($this->table)
-            ->order_by('created_at', 'DESC')
+            ->order_by('created_at', 'ASC')
             ->get_all();
     }
 }

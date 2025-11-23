@@ -6,7 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthSync - Your Trusted Health Partner</title>
+    <title>HealthSync - HealthSync</title>
     <link rel="stylesheet" href="<?= base_url(); ?>public/CSS/Style.css">
     <script src="<?= base_url(); ?>public/JS/script.js"></script>
 </head>

@@ -70,6 +70,12 @@ $router->get('/patients_chart', 'Control::PatientsChart');
 $router->get('/patients_disease', 'Control::PatientsDisease');
 $router->get('/patients_predict', 'Control::PatientsPredict');
 
+// API routes
+$router->group('/api', function() use ($router) {
+    $router->get('/check-appointment-availability', 'Api::check_appointment_availability');
+    $router->get('/available-slots', 'Api::available_slots');
+});
+
 // Patient routes
 $router->group('/patients', function() use ($router) {
     $router->get('/', 'Control::Patients');
@@ -108,7 +114,17 @@ $router->group('/records', function() use ($router) {
     $router->get('/edit/{id}', 'Crud::recordsEdit')->where_number('id');
     $router->post('/update/{id}', 'Crud::recordsUpdate')->where_number('id');
     $router->post('/delete/{id}', 'Crud::recordsDelete')->where_number('id');
+    $router->get('/view/{id}', 'Control::recordView')->where_number('id');
 });
+
+// Records PDF
+$router->get('/records/export_pdf', 'RecordsController@export_pdf');
+
+// Single patient record PDF
+$router->get('/records/view/{id}/export_pdf', 'RecordsController@export_patient_pdf');
+
+// Medications PDF
+$router->get('/medications/export_pdf', 'MedicationsController@export_pdf');
 
 // Inventory routes
 $router->group('/inventory', function() use ($router) {
@@ -118,4 +134,5 @@ $router->group('/inventory', function() use ($router) {
     $router->get('/edit/{id}', 'Crud::inventoryEdit')->where_number('id');
     $router->post('/update/{id}', 'Crud::inventoryUpdate')->where_number('id');
     $router->post('/delete/{id}', 'Crud::inventoryDelete')->where_number('id');
+    $router->post('/refill/{item_id}', 'Crud::inventoryRefill')->where_number('item_id');
 });

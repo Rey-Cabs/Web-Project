@@ -7,26 +7,37 @@
     <link rel="stylesheet" href="<?= base_url(); ?>public/CSS/Style.css">
 </head>
 <body>
-    <?php include('templates/header.php'); ?>
 
-    <div class="main-container">
-        <?php 
-        $activePage = 'patients';
-        include('templates/sidebar.php'); 
-        ?>
-        <main class="dashboard">
-            <div class="patients-header">
-                <div>
-                    <h2>Patients</h2>
-                    <p class="table-subtitle">Manage patient records and basic demographics.</p>
-                </div>
-                <div class="header-actions">
-                    <form action="<?= site_url('/patients'); ?>" method="get" class="search-form">
-                        <input class="search" name="q" type="text" placeholder="Search patients" value="<?= html_escape($search_term ?? ''); ?>">
-                        <button type="submit" class="btn">Search</button>
-                    </form>
-                    <a href="<?= site_url('/patients/create'); ?>" class="btn btn-primary">+ Add Patient</a>
-                </div>
+<?php 
+include('templates/header.php'); 
+$LAVA = lava_instance();
+?>
+
+<div class="main-container">
+    <?php 
+    $activePage = 'patients';
+    include('templates/sidebar.php');
+    ?>
+
+    <main class="dashboard">
+
+        <div class="patients-header">
+            <h2>Patients</h2>
+        </div>
+
+        <!-- ------------------------------------------- -->
+        <!--   CASE 1: ADMIN → Show full table            -->
+        <!-- ------------------------------------------- -->
+
+        <?php if ($role === 'admin'): ?>
+
+            <div class="header-actions">
+                <form action="<?= site_url('/patients'); ?>" method="get" class="search-form">
+                    <input class="search" name="q" type="text" placeholder="Search patients"
+                           value="<?= html_escape($search_term ?? ''); ?>">
+                    <button type="submit" class="btn">Search</button>
+                </form>
+                <a href="<?= site_url('/patients/create'); ?>" class="btn btn-primary">+ Add Patient</a>
             </div>
 
             <div class="table-container">
@@ -46,42 +57,90 @@
                             <th class="center">Remove</th>
                         </tr>
                     </thead>
+
                     <tbody>
-                    <?php if(!empty($patients)): ?>
-                        <?php foreach($patients as $patient): ?>
-                        <tr>
-                            <td><?= html_escape($patient['id']); ?></td>
-                            <td><?= html_escape($patient['first_name']); ?></td>
-                            <td><?= html_escape($patient['last_name']); ?></td>
-                            <td><?= html_escape($patient['age']); ?></td>
-                            <td><?= html_escape($patient['email']); ?></td>
-                            <td><?= html_escape($patient['address']); ?></td>
-                            <td><?= html_escape($patient['disease']); ?></td>
-                            <td><?= html_escape($patient['type']); ?></td>
-                            <td><?= html_escape($patient['status']); ?></td>
-                            <td class="center">
-                                <a href="<?= site_url('/patients/edit/'.$patient['id']); ?>" class="edit-btn" title="Edit patient">✏️</a>
-                            </td>
-                            <td class="center">
-                                <form action="<?= site_url('/patients/delete/'.$patient['id']); ?>" method="POST" class="inline-form" onsubmit="return confirm('Remove this patient record?');">
-                                    <button type="submit" class="delete-btn" title="Remove patient">🗑️</button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="11" class="empty-state">No patient records found.</td>
-                        </tr>
-                    <?php endif; ?>
+                        <?php if (!empty($patients)): ?>
+                            <?php foreach ($patients as $patient): ?>
+                                <tr>
+                                    <td><?= $patient['id']; ?></td>
+                                    <td><?= $patient['first_name']; ?></td>
+                                    <td><?= $patient['last_name']; ?></td>
+                                    <td><?= $patient['age']; ?></td>
+                                    <td><?= $patient['email']; ?></td>
+                                    <td><?= $patient['address']; ?></td>
+                                    <td><?= $patient['disease']; ?></td>
+                                    <td><?= $patient['type']; ?></td>
+                                    <td><?= $patient['status']; ?></td>
+                                    <td class="center">
+                                        <a href="<?= site_url('/patients/edit/'.$patient['id']); ?>" class="edit-btn">✏️</a>
+                                    </td>
+                                    <td class="center">
+                                        <form action="<?= site_url('/patients/delete/'.$patient['id']); ?>" method="POST"
+                                              onsubmit="return confirm('Remove this patient record?');">
+                                            <button type="submit" class="delete-btn">🗑️</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr><td colspan="11" class="empty-state">No patient records found.</td></tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
+
                 <?php if (!empty($pagination)) echo $pagination; ?>
             </div>
-        </main>
-    </div>
 
-    <?php include('templates/footer.php'); ?>
-    <script src="<?= base_url(); ?>public/JS/script.js"></script>
+        <!-- ------------------------------------------- -->
+        <!--   CASE 2: LOGGED IN USER → Show own info     -->
+        <!-- ------------------------------------------- -->
+
+        <?php elseif ($isPatient): ?>
+
+            <h3>Your Patient Information</h3>
+
+            <div class="patient-info-card">
+
+                <div class="info-row"><strong>First Name:</strong> <?= $patientInfo['first_name']; ?></div>
+                <div class="info-row"><strong>Last Name:</strong> <?= $patientInfo['last_name']; ?></div>
+                <div class="info-row"><strong>Age:</strong> <?= $patientInfo['age']; ?></div>
+                <div class="info-row"><strong>Email:</strong> <?= $patientInfo['email']; ?></div>
+                <div class="info-row"><strong>Address:</strong> <?= $patientInfo['address']; ?></div>
+                <div class="info-row"><strong>Disease:</strong> <?= $patientInfo['disease']; ?></div>
+                <div class="info-row"><strong>Type:</strong> <?= $patientInfo['type']; ?></div>
+                <div class="info-row"><strong>Status:</strong> <?= $patientInfo['status']; ?></div>
+
+            </div>
+
+        <!-- ------------------------------------------- -->
+        <!--   CASE 3: USER NOT A PATIENT                 -->
+        <!-- ------------------------------------------- -->
+
+        <?php else: ?>
+
+            <div class="empty-state">
+                <h3>You are not registered as a patient yet.</h3>
+                <p>Would you like to be admitted as a patient?</p><br>
+
+                <?php if (!$LAVA->session->userdata('logged_in')): ?>
+                    <a href="<?= site_url('/auth/login'); ?>" class="btn btn-primary">
+                        Admit as Patient
+                    </a>
+                <?php else: ?>
+                    <a href="<?= site_url('/patients/create'); ?>" class="btn btn-primary">
+                        Admit as Patient
+                    </a>
+                <?php endif; ?>
+
+            </div>
+
+        <?php endif; ?>
+
+    </main>
+</div>
+
+<?php include('templates/footer.php'); ?>
+<script src="<?= base_url(); ?>public/JS/script.js"></script>
+
 </body>
 </html>
