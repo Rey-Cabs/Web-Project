@@ -10,6 +10,8 @@
 
     <?php if ($sessionRole === 'admin'): ?>
         <a href="<?= site_url('/inventory') ?>" class="nav-btn <?= ($activePage=='inventory') ? 'active' : '' ?>"><span>📦</span> Inventory</a>
+        <a href="<?= site_url('/admin/users') ?>" class="nav-btn <?= ($activePage=='admin-users') ? 'active' : '' ?>"><span>👥</span> Manage Users</a>
     <?php endif; ?>
     <a href="<?= site_url('/records') ?>" class="nav-btn <?= ($activePage=='records') ? 'active' : '' ?>"><span>📋</span> Records</a>
+    <a href="<?= site_url('/profile') ?>" class="nav-btn <?= ($activePage=='profile') ? 'active' : '' ?>"><span>👨</span> My Profile</a>
 </aside>

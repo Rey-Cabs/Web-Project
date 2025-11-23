@@ -48,13 +48,12 @@
                         <th>Schedule</th>
                         <th>Duration</th>
                         <th>Status</th>
-                        <?php if($role === 'admin'): ?><th class="center">View</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if(!empty($records)): ?>
                     <?php foreach($records as $record): ?>
-                        <tr>
+                        <tr onclick="window.location.href='<?= site_url('/records/view/'.($record['patient_id'] ?? 0)); ?>';" style="cursor: pointer;">
                             <td><?= html_escape($record['id'] ?? 'None'); ?></td>
                             <?php if($role === 'admin'): ?>
                                 <td><?= html_escape(($record['first_name'] ?? 'None') . ' ' . ($record['last_name'] ?? '')); ?></td>
@@ -67,16 +66,11 @@
                             <td><?= html_escape($record['schedule'] ?? 'None'); ?></td>
                             <td><?= html_escape($record['duration'] ?? 'None'); ?></td>
                             <td><?= html_escape($record['status'] ?? 'Unknown'); ?></td>
-                            <?php if($role === 'admin'): ?>
-                                <td class="center">
-                                    <a href="<?= site_url('/records/view/'.($record['patient_id'] ?? 0)); ?>" class="view-btn" title="View full patient record">👁️ View</a>
-                                </td>
-                            <?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="<?= $role==='admin'?11:9 ?>" class="empty-state">No records available.</td>
+                        <td colspan="<?= $role==='admin'?10:8 ?>" class="empty-state">No records available.</td>
                     </tr>
                 <?php endif; ?>
                 </tbody>

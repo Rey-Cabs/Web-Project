@@ -136,3 +136,18 @@ $router->group('/inventory', function() use ($router) {
     $router->post('/delete/{id}', 'Crud::inventoryDelete')->where_number('id');
     $router->post('/refill/{item_id}', 'Crud::inventoryRefill')->where_number('item_id');
 });
+
+// User Profile routes
+$router->group('/profile', function() use ($router) {
+    $router->get('/', 'Profile::index');
+    $router->get('/edit', 'Profile::edit');
+    $router->post('/update', 'Profile::update');
+    $router->post('/delete-account', 'Profile::deleteAccount');
+    $router->get('/view/{id}', 'Profile::viewUser')->where_number('id');
+});
+
+// Admin routes
+$router->group('/admin', function() use ($router) {
+    $router->get('/users', 'Control::AdminUsers');
+    $router->post('/users/delete/{id}', 'Control::AdminDeleteUser')->where_number('id');
+});

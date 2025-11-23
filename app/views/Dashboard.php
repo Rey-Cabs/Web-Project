@@ -37,15 +37,6 @@
             color: #2c3e50;
             margin-bottom: 0.5rem;
         }
-        .patients-table th {
-            background-color: #f5f6fa;
-            font-weight: 600;
-            text-align: left;
-            padding: 0.6rem;
-        }
-        .patients-table td {
-            padding: 0.5rem;
-        }
         .empty-state {
             color: #7f8c8d;
             font-style: italic;
@@ -67,6 +58,16 @@
         <section class="welcome-section">
             <h2>Hello, <?= html_escape($user['first_name'] ?? 'User'); ?>!</h2>
             <p>Here's a quick overview of your health activity.</p>
+            <?php if($user['role'] === 'admin'): ?>
+            <div style="margin-top: 20px;">
+                <a href="<?= site_url('/admin/users'); ?>" style="display: inline-block; padding: 10px 20px; background: #b73b2f; color: white; border-radius: 4px; text-decoration: none; margin-right: 10px;">Manage Users</a>
+                <a href="<?= site_url('/profile'); ?>" style="display: inline-block; padding: 10px 20px; background: #6c757d; color: white; border-radius: 4px; text-decoration: none;">My Profile</a>
+            </div>
+            <?php else: ?>
+            <div style="margin-top: 20px;">
+                <a href="<?= site_url('/profile'); ?>" style="display: inline-block; padding: 10px 20px; background: #b73b2f; color: white; border-radius: 4px; text-decoration: none;">View My Profile</a>
+            </div>
+            <?php endif; ?>
         </section>
 
         <!-- Top Cards -->

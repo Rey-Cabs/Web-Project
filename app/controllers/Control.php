@@ -1042,4 +1042,64 @@ public function recordView($id)
 
     $this->call->view('record_view', $data);
 }
+
+/*** Admin User Management ***/
+public function AdminUsers()
+{
+    // Check if user is admin
+    $this->only_admin();
+
+    // Get all users
+    $users = $this->UserModel->all_users();
+
+    $data = [
+        'users' => $users
+    ];
+
+    $this->call->view('admin/users', $data);
+}
+
+/**
+ * Delete a user account (admin only)
+ */
+public function AdminDeleteUser($id)
+{
+    // Only allow POST requests
+    if ($this->io->method(true) !== 'POST') {
+        http_response_code(405);
+        set_flash_alert('danger', 'Invalid request method.');
+        redirect('/admin/users');
+        exit;
+    }
+
+    // Check if user is admin
+    $this->only_admin();
+
+    $user_id = (int) $id;
+    $current_user_id = $this->session->userdata('user_id');
+
+    // Prevent admin from deleting themselves
+    if ($user_id === $current_user_id) {
+        set_flash_alert('danger', 'You cannot delete your own account.');
+        redirect('/admin/users');
+        exit;
+    }
+
+    // Check if user exists
+    $user = $this->UserModel->find_by_id($user_id);
+    if (!$user) {
+        set_flash_alert('danger', 'User not found.');
+        redirect('/admin/users');
+        exit;
+    }
+
+    // Delete the user
+    if ($this->UserModel->delete_user($user_id)) {
+        set_flash_alert('success', 'User "' . htmlspecialchars($user['first_name'] . ' ' . $user['last_name']) . '" has been deleted successfully.');
+    } else {
+        set_flash_alert('danger', 'Failed to delete user. Please try again.');
+    }
+
+    redirect('/admin/users');
+}
 }

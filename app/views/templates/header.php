@@ -17,11 +17,16 @@
                 $first = $LAVA->session->userdata('first_name') ?? '';
             ?>
 
+            <!-- Dark Mode Toggle -->
+            <button id="darkModeToggle" class="dark-mode-toggle" title="Toggle dark mode">
+                <span class="dark-mode-icon">🌙</span>
+            </button>
+
             <?php if ($logged_in): ?>
 
                 <!-- Hello + Name -->
                 <button id="userMenuBtn" class="btn btn-secondary"
-                        style="margin-left: 15px; color: #fff !important; font-weight:700; border-radius:10px; border-color:#000;">
+                        style="margin-left: 15px; font-weight:700;">
                     Hello, <?= html_escape($first); ?>
                 </button>
 

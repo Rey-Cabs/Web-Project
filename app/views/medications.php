@@ -17,29 +17,6 @@
             font-size: 1.8rem; 
             color: var(--brand); 
         }
-        .table-container { overflow-x: auto; }
-        .patients-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            font-size: 0.95rem; 
-            min-width: 800px; 
-        }
-        .patients-table th, .patients-table td { 
-            border: 1px solid #ddd; 
-            padding: 10px; 
-            text-align: left; 
-        }
-        .patients-table th { 
-            background-color: var(--brand); 
-            color: #fff; 
-            font-weight: 600; 
-            border-bottom: 2px solid #932822;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-        .patients-table tr:nth-child(even) { background-color: #f9f9f9; }
-        .patients-table tr:hover { background-color: #f0dbd5; }
         .center { text-align: center; }
         .empty-state { text-align: center; padding: 20px; font-style: italic; color: var(--brand); }
         .btn-pdf { 
