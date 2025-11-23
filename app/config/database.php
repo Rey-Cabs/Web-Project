@@ -63,7 +63,7 @@ $database['main'] = array(
     'port'		=> '3306',
     'username'	=> 'sql12809035',
     'password'	=> '4FH4zvvX8p',
-    'database'	=> 'if0_40486496_healthcare',
+    'database'	=> 'sql12809035',
     'charset'	=> 'utf8mb4',
     'dbprefix'	=> '',
     // Optional for SQLite
