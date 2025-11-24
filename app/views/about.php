@@ -55,16 +55,19 @@
                 <h2>Meet Our Team</h2>
                 <div class="team-cards">
                     <div class="team-card">
+                        <img src="<?= base_url(); ?>public/IMG/carl.jpg" alt="Dok Kate">
                         <h4>Crisporo</h4>
-                        <p>Chief Medical Officer</p>
+                        <p>Chief Medical Office</p>
                     </div>
                     <div class="team-card">
+                        <img src="<?= base_url(); ?>public/IMG/koy.jpg" alt="Dok Kate">
                         <h4>Aquino</h4>
                         <p>Senior General Physician</p>
                     </div>
                     <div class="team-card">
+                        <img src="<?= base_url(); ?>public/IMG/jay.jpg" alt="Dok Kate">
                         <h4>Cabral</h4>
-                        <p>Head Nurse</p>
+                        <p>Clinic Administrator</p>
                     </div>
                     <div class="team-card">
                         <img src="<?= base_url(); ?>public/IMG/bakla.jpg" alt="Dok Kate">
